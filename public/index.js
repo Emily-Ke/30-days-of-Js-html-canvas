@@ -2,17 +2,37 @@ const canvas = document.getElementById('artboard');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const ctx = canvas.getContext('2d');
+const context = canvas.getContext('2d');
 
-const initializePen = () => {
+const init = ctx => {
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(
+    'Click and drag to start drawing',
+    canvas.width / 2,
+    canvas.height / 2
+  );
+  ctx.lineCap = 'round';
+};
+
+const getHue = (() => {
   let hue = 0;
-  let strokeWidth = 50;
-  const minStrokeWidth = 20;
-  const maxStrokeWidth = 60;
-  const delta = 0.2;
-  let direction = 'ascending';
+  return () => {
+    hue += 1;
+    if (hue > 360) {
+      hue = 0;
+    }
+    return hue;
+  };
+})();
 
-  function getStrokeWidth() {
+const getStrokeWidth = (() => {
+  let strokeWidth = 1;
+  const minStrokeWidth = 1;
+  const maxStrokeWidth = 60;
+  const delta = 0.5;
+  let direction = 'ascending';
+  return () => {
     if (direction === 'ascending') {
       if (strokeWidth < maxStrokeWidth) {
         strokeWidth += delta;
@@ -20,47 +40,51 @@ const initializePen = () => {
         strokeWidth -= delta;
         direction = 'descending';
       }
+    } else if (strokeWidth > minStrokeWidth) {
+      strokeWidth -= delta;
     } else {
-      if (strokeWidth > minStrokeWidth) {
-        strokeWidth -= delta;
-      } else {
-        strokeWidth += delta;
-        direction = 'ascending';
-      }
+      strokeWidth += delta;
+      direction = 'ascending';
     }
     return strokeWidth;
-  }
-
-  return function drawDot({ clientX: x, clientY: y }) {
-    const radialGradient = ctx.createRadialGradient(
-      x,
-      y,
-      0,
-      x,
-      y,
-      getStrokeWidth()
-    );
-    radialGradient.addColorStop(0.8, `hsla(${hue}, 100%, 50%, 1)`);
-    radialGradient.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
-    ctx.fillStyle = radialGradient;
-
-    hue = (hue + 1) % 360;
-
-    ctx.fillRect(
-      x - strokeWidth,
-      y - strokeWidth,
-      strokeWidth * 2,
-      strokeWidth * 2
-    );
   };
-};
+})();
 
-const drawDot = initializePen();
+let firstClick = true;
+let isDrawing = false;
+let [prevX, prevY] = [];
+let [currentX, currentY] = [];
 
-canvas.addEventListener('mousedown', () => {
-  canvas.addEventListener('mousemove', drawDot);
-});
+const draw = (ctx => ({ clientX: x, clientY: y }) => {
+  if (!isDrawing) return;
+  ctx.strokeStyle = `hsla(${getHue()}, 100%, 50%)`;
+  ctx.lineWidth = getStrokeWidth();
 
+  // create line segment
+  [currentX, currentY] = [x, y];
+  ctx.beginPath();
+  ctx.moveTo(prevX, prevY);
+  ctx.lineTo(currentX, currentY);
+  ctx.stroke();
+  [prevX, prevY] = [currentX, currentY];
+})(context);
+
+const initializeLine = (ctx => ({ clientX: x, clientY: y }) => {
+  if (firstClick) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    firstClick = false;
+  }
+  [prevX, prevY] = [x, y];
+  isDrawing = true;
+})(context);
+
+init(context);
+
+canvas.addEventListener('mousedown', initializeLine);
+canvas.addEventListener('mousemove', draw);
 canvas.addEventListener('mouseup', () => {
-  canvas.removeEventListener('mousemove', drawDot);
+  isDrawing = false;
+});
+canvas.addEventListener('mouseout', () => {
+  isDrawing = false;
 });
